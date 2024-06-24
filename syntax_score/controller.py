@@ -83,22 +83,25 @@ class ClinicalCase:
 
 
 class CoronaryAngiography:
-    def __init__(self, id_research, type_blood_supply, affected_segments):
+    def __init__(self, id_research, type_blood_supply, affected_segments, diffuse_lesions = 0):
         self.affected_segments = affected_segments
         self.id_research = id_research
         self.type_blood_supply = type_blood_supply
+        self.diffuse_lesions = diffuse_lesions
 
     def get_summ_syntax_score(self):
         summ = 0
         for i in self.affected_segments.values():
             summ += i.count_syntax_score()
+        summ += self.diffuse_lesions
         return summ
 
 
 class AffectedSegment:
     def __init__(self, segments, occlusion_more_three_month=0, blind_stump=0, pontine_collaterals=0,
                  lateral_branches=0, trifurcation=0, bifurcation=0, pronounced_angulation=0, wellhead_lesion=0,
-                 pronounced_tortuosity=0, lession_length=0, calcification=0, thrombosis=0, diffuse_lesions=0):
+                 pronounced_tortuosity=0, lession_length=0, calcification=0, thrombosis=0,
+                 antegrade_or_retrograde_filling=0):
         self.segments = segments
         self.occlusion_more_three_month = occlusion_more_three_month
         self.blind_stump = blind_stump
@@ -112,14 +115,14 @@ class AffectedSegment:
         self.lession_length = lession_length
         self.calcification = calcification
         self.thrombosis = thrombosis
-        self.diffuse_lesions = diffuse_lesions
+        self.antegrade_or_retrograde_filling = antegrade_or_retrograde_filling
 
     def count_syntax_score(self):
         segment_score = sum(self.segments.values())
         return (segment_score + self.occlusion_more_three_month + self.blind_stump + self.pontine_collaterals +
                 self.lateral_branches + self.trifurcation + self.bifurcation + self.pronounced_angulation +
                 self.wellhead_lesion + self.pronounced_tortuosity + self.lession_length +
-                self.calcification + self.thrombosis + self.diffuse_lesions)
+                self.calcification + self.thrombosis + self.antegrade_or_retrograde_filling)
 
 
 def get_data():
@@ -150,8 +153,56 @@ def create_segment(dec, type_blood_supply):
     affected_segment.calcification = count_calcification(without_none)
     affected_segment.thrombosis = count_thrombosis(without_none)
     affected_segment.diffuse_lesions = count_diffuse_lesions(without_none)
+    affected_segment.antegrade_or_retrograde_filling = count_antegrade_or_retrograde_filling(without_none)
+    affected_segment.lession_length = count_lession_length(without_none)
 
     return affected_segment
+
+
+def count_antegrade_or_retrograde_filling(without_none):
+    result = 0
+    occlusion_segment = ''
+    antegrade_or_retrograde_filling_segment = ''
+    for key, value in without_none.items():
+        if 'Укажите номер сегмента в котором начинается окклюзия' in key:
+            occlusion_segment = value
+        if 'Укажите первый сегмент дистальнее окклюзии визуализируемый антеградным' in key:
+            antegrade_or_retrograde_filling_segment = value
+    if antegrade_or_retrograde_filling_segment == 'нет':
+        return 3
+    if occlusion_segment in ('1', '1.0'):
+        if antegrade_or_retrograde_filling_segment in ('3', '3.0'):
+            return 1
+        if antegrade_or_retrograde_filling_segment in ('4', '4.0'):
+            return 2
+        if antegrade_or_retrograde_filling_segment in ('16', '16.0'):
+            return 3
+    if occlusion_segment in ('2', '2.0'):
+        if antegrade_or_retrograde_filling_segment in ('4', '4.0'):
+            return 1
+        if antegrade_or_retrograde_filling_segment in ('16', '16.0'):
+            return 2
+    if occlusion_segment in ('3', '3.0'):
+        if antegrade_or_retrograde_filling_segment in ('16', '16.0'):
+            return 1
+    if occlusion_segment in ('5', '5.0'):
+        if antegrade_or_retrograde_filling_segment in ('7', '7.0'):
+            return 1
+        if antegrade_or_retrograde_filling_segment in ('8', '8.0'):
+            return 2
+        if antegrade_or_retrograde_filling_segment in ('11', '11.0'):
+            return 3
+        if antegrade_or_retrograde_filling_segment in ('13', '13.0'):
+            return 4
+        if antegrade_or_retrograde_filling_segment in ('14', '14.0'):
+            return 5
+    if occlusion_segment in ('6', '6.0'):
+        if antegrade_or_retrograde_filling_segment in ('8', '8.0'):
+            return 1
+    if occlusion_segment in ('11', '11.0'):
+        if antegrade_or_retrograde_filling_segment in ('14', '14.0'):
+            return 1
+    return result
 
 
 def count_diffuse_lesions(without_none):
@@ -180,8 +231,11 @@ def count_calcification(without_none):
 
 def count_lession_length(without_none):
     result = 0
+    occl_segment = False
     for key, value in without_none.items():
-        if 'Длина поражения >20 мм?' in key:
+        if 'Окклюзия?' in key:
+            occl_segment = True
+        if 'Длина поражения' in key and not occl_segment:
             result += 1
     return result
 
@@ -292,8 +346,11 @@ def create_case(case_data):
                     number_segment = '[' + str(i + 1) + ']'
                     dec_segment = {key: value for key, value in dec.items() if number_segment in key}
                     affected_segments[i] = create_segment(dec_segment, dec['Тип кровоснабжения'])
-
-            coronary_angiographies.append(CoronaryAngiography(dec['ID'], dec['Тип кровоснабжения'], affected_segments))
+            without_none = {key: value for key, value in dec.items() if
+                            not isinstance(value, float) and value != 'нет' and
+                            value is not None}
+            coronary_angiographies.append(CoronaryAngiography(dec['ID'], dec['Тип кровоснабжения'], affected_segments,
+                                                              count_diffuse_lesions(without_none)))
 
     return ClinicalCase(case_data[0]['Номер эпизода'], coronary_angiographies)
 
