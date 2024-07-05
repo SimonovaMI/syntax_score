@@ -1,6 +1,7 @@
 import statistics
 import model
 import view
+import time
 
 __coeff__ = 2
 __coeff_ocl__ = 5
@@ -83,7 +84,7 @@ class ClinicalCase:
 
 
 class CoronaryAngiography:
-    def __init__(self, id_research, type_blood_supply, affected_segments, diffuse_lesions = 0):
+    def __init__(self, id_research, type_blood_supply, affected_segments, diffuse_lesions=0):
         self.affected_segments = affected_segments
         self.id_research = id_research
         self.type_blood_supply = type_blood_supply
@@ -125,8 +126,8 @@ class AffectedSegment:
                 self.calcification + self.thrombosis + self.antegrade_or_retrograde_filling)
 
 
-def get_data():
-    data_frame = model.get_all_data()
+def get_data(file_path):
+    data_frame = model.get_all_data(file_path)
     cases = list(data_frame['Номер эпизода'].unique())
     for case in cases:
         case_data = data_frame[data_frame['Номер эпизода'] == case].to_dict('records')
@@ -136,9 +137,7 @@ def get_data():
     create_forms()
 
 
-def create_segment(dec, type_blood_supply):
-    without_none = {key: value for key, value in dec.items() if not isinstance(value, float) and value != 'нет' and
-                    value is not None}
+def create_segment(without_none, type_blood_supply):
     segments_with_count = count_segments(without_none, type_blood_supply)
     affected_segment = AffectedSegment(segments_with_count)
     affected_segment.occlusion_more_three_month = count_occlusion_more_three_month(without_none)
@@ -152,7 +151,6 @@ def create_segment(dec, type_blood_supply):
     affected_segment.pronounced_tortuosity = count_pronounced_tortuosity(without_none)
     affected_segment.calcification = count_calcification(without_none)
     affected_segment.thrombosis = count_thrombosis(without_none)
-    affected_segment.diffuse_lesions = count_diffuse_lesions(without_none)
     affected_segment.antegrade_or_retrograde_filling = count_antegrade_or_retrograde_filling(without_none)
     affected_segment.lession_length = count_lession_length(without_none)
 
@@ -341,14 +339,15 @@ def create_case(case_data):
                 affected_segments[i] = AffectedSegment({})
             coronary_angiographies.append(CoronaryAngiography(dec['ID'], dec['Тип кровоснабжения'], affected_segments))
         else:
-            if dec['Все поражения указаны?'] == 'Да':
-                for i in range(0, 9):
-                    number_segment = '[' + str(i + 1) + ']'
-                    dec_segment = {key: value for key, value in dec.items() if number_segment in key}
-                    affected_segments[i] = create_segment(dec_segment, dec['Тип кровоснабжения'])
             without_none = {key: value for key, value in dec.items() if
                             not isinstance(value, float) and value != 'нет' and
                             value is not None}
+            if dec['Все поражения указаны?'] == 'Да':
+                for i in range(0, 9):
+                    number_segment = '[' + str(i + 1) + ']'
+                    dec_segment = {key: value for key, value in without_none.items() if number_segment in key}
+                    affected_segments[i] = create_segment(dec_segment, dec['Тип кровоснабжения'])
+
             coronary_angiographies.append(CoronaryAngiography(dec['ID'], dec['Тип кровоснабжения'], affected_segments,
                                                               count_diffuse_lesions(without_none)))
 
@@ -390,4 +389,6 @@ def create_forms():
 
 
 if __name__ == '__main__':
-    get_data()
+    file = view.choose_file()
+    get_data(file)
+
