@@ -1,7 +1,7 @@
+import os
 import statistics
 import model
 import view
-import time
 
 __coeff__ = 2
 __coeff_ocl__ = 5
@@ -134,7 +134,7 @@ def get_data(file_path):
         created_case = create_case(case_data)
         create_data_1(created_case)
         create_data_2(created_case)
-    create_forms()
+    create_forms(os.path.dirname(file_path))
 
 
 def create_segment(without_none, type_blood_supply):
@@ -383,9 +383,9 @@ def create_data_2(created_case):
                    'Среднее зачение': created_case.get_average_syntax_score()})
 
 
-def create_forms():
-    view.create_form_1(data_1)
-    view.create_form_2(data_2)
+def create_forms(file_path):
+    view.create_form_1(data_1, file_path)
+    view.create_form_2(data_2, file_path)
 
 
 if __name__ == '__main__':
